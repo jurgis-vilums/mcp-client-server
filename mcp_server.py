@@ -13,6 +13,7 @@ def debug(msg: str) -> None:
 
 mcp = FastMCP("darel", log_level="ERROR")
 
+DAREL_BASE_URL = "https://darel.lv/"
 DAREL_SEARCH_URL = "https://darel.lv/en/module/iqitsearch/searchiqit"
 
 debug("MCP Server module loaded, tool registered")
@@ -33,6 +34,10 @@ def darel_search(query: str, results_per_page: int = 10, cookie: Optional[str] =
         "x-requested-with": "XMLHttpRequest",
         "origin": "https://darel.lv",
         "referer": "https://darel.lv/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36",
+        "accept-language": "en-US,en;q=0.9",
     }
 
     cookie = cookie or os.getenv("DAREL_COOKIE")
@@ -42,8 +47,20 @@ def darel_search(query: str, results_per_page: int = 10, cookie: Optional[str] =
 
     data = {"s": query, "resultsPerPage": str(results_per_page), "ajax": "true"}
     
-    debug(f"🌐 Making HTTP POST to darel.lv...")
+    debug(f"🌐 Priming cookies with GET {DAREL_BASE_URL} ...")
     with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        try:
+            client.get(
+                DAREL_BASE_URL,
+                headers={
+                    "user-agent": headers["user-agent"],
+                    "accept-language": headers["accept-language"],
+                },
+            )
+        except httpx.RequestError:
+            pass
+
+        debug(f"🌐 Making HTTP POST to darel.lv...")
         r = client.post(DAREL_SEARCH_URL, headers=headers, data=data)
         r.raise_for_status()
         debug(f"✅ HTTP {r.status_code} - Response received")
