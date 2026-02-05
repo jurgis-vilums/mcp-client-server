@@ -6,3 +6,4 @@ langchain-mcp-adapters
 langchain-anthropic
 fastapi
 uvicorn[standard]
+playwright
