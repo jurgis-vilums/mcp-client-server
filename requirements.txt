@@ -1,8 +1,8 @@
 httpx
 mcp
 python-dotenv
+langchain
 langchain-mcp-adapters
-langchain-openai
-langgraph
+langchain-anthropic
 fastapi
 uvicorn[standard]
