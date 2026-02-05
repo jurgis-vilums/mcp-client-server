@@ -338,6 +338,64 @@ flowchart LR
 
 ---
 
+## 🔌 REST API Reference (web.py)
+
+```mermaid
+flowchart LR
+    subgraph Endpoints["API Endpoints"]
+        Chat["POST /chat<br/><i>Send message</i>"]
+        ListSessions["GET /sessions<br/><i>List all sessions</i>"]
+        GetSession["GET /sessions/{id}<br/><i>Get session history</i>"]
+        Docs["GET /docs<br/><i>Swagger UI</i>"]
+    end
+    
+    subgraph Storage["💾 Storage"]
+        SQLite["sessions.db<br/><i>SQLite</i>"]
+    end
+    
+    Chat --> SQLite
+    ListSessions --> SQLite
+    GetSession --> SQLite
+```
+
+| Endpoint | Method | Description | Request | Response |
+|----------|--------|-------------|---------|----------|
+| `/chat` | POST | Send a message to the chatbot | `{message, session_id?}` | `{session_id, response}` |
+| `/sessions` | GET | List all sessions | `?limit=100&offset=0` | `{sessions: [{session_id, updated_at}]}` |
+| `/sessions/{id}` | GET | Get full conversation history | - | `{session_id, messages: [...]}` |
+| `/` | GET | Built-in HTML chat UI | - | HTML |
+| `/docs` | GET | Swagger/OpenAPI docs | - | HTML |
+
+### Session Flow
+
+```mermaid
+sequenceDiagram
+    participant Client as External Frontend
+    participant API as web.py
+    participant DB as sessions.db
+    
+    Note over Client,DB: New conversation
+    Client->>API: POST /chat {message: "Hi"}
+    API->>DB: Create session + save message
+    API-->>Client: {session_id: "abc123", response: "Hello!"}
+    
+    Note over Client,DB: Continue conversation
+    Client->>API: POST /chat {message: "Search laptops", session_id: "abc123"}
+    API->>DB: Load history, append, save
+    API-->>Client: {session_id: "abc123", response: "Here are laptops..."}
+    
+    Note over Client,DB: List & restore sessions
+    Client->>API: GET /sessions?limit=10
+    API->>DB: Query recent sessions
+    API-->>Client: {sessions: [{session_id, updated_at}, ...]}
+    
+    Client->>API: GET /sessions/abc123
+    API->>DB: Load full history
+    API-->>Client: {session_id, messages: [system, human, ai, ...]}
+```
+
+---
+
 ## File Structure
 
 ```
@@ -346,6 +404,8 @@ mcp-client-server/
 ├── web.py             # 🌐  Web interface (uvicorn web:app)
 ├── core.py            # 🧠  Shared logic (MCPRuntime, chat_once)
 ├── mcp_server.py      # ⚙️  MCP tool server
+├── session_store.py   # 💾  SQLite session storage
+├── sessions.db        # 🗄️  Session database (auto-created)
 ├── requirements.txt   # 📦  Dependencies
 ├── .env               # 🔑  API keys (gitignored)
 └── .env.example       # 📋  Config template

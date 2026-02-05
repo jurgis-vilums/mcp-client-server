@@ -28,6 +28,7 @@ SYSTEM_PROMPT = (
 
 class MCPRuntime:
     def __init__(self) -> None:
+        print("\n🔧 [DEBUG] MCPRuntime.__init__() - Creating runtime instance")
         self._stack: Optional[AsyncExitStack] = None
         self._session: Optional[ClientSession] = None
         self._tools = None
@@ -35,8 +36,10 @@ class MCPRuntime:
 
     async def start(self) -> None:
         if self._session is not None:
+            print("⏭️  [DEBUG] MCPRuntime.start() - Already started, skipping")
             return
 
+        print("\n🚀 [DEBUG] MCPRuntime.start() - Starting MCP runtime...")
         stack = AsyncExitStack()
         errlog = sys.stderr
         errlog_path = os.getenv("MCP_ERRLOG_PATH")
@@ -45,21 +48,32 @@ class MCPRuntime:
                 open(errlog_path, "a", encoding="utf-8", buffering=1)
             )
 
+        print("📡 [DEBUG] Spawning MCP server subprocess (mcp_server.py)...")
         read, write = await stack.enter_async_context(stdio_client(SERVER_PARAMS, errlog=errlog))
+        
+        print("🤝 [DEBUG] Establishing ClientSession with MCP server...")
         session = await stack.enter_async_context(ClientSession(read, write))
+        
+        print("🔄 [DEBUG] Initializing session (handshake)...")
         await session.initialize()
+        
+        print("🔍 [DEBUG] Loading MCP tools from server...")
         tools = await load_mcp_tools(session)
+        print(f"✅ [DEBUG] Loaded {len(tools)} tool(s): {[t.name for t in tools]}")
 
         self._stack = stack
         self._session = session
         self._tools = tools
+        print("🎉 [DEBUG] MCP Runtime started successfully!\n")
 
     async def aclose(self) -> None:
+        print("\n🛑 [DEBUG] MCPRuntime.aclose() - Shutting down...")
         if self._stack is not None:
             await self._stack.aclose()
         self._stack = None
         self._session = None
         self._tools = None
+        print("👋 [DEBUG] MCP Runtime closed.\n")
 
     @property
     def lock(self) -> asyncio.Lock:
@@ -77,10 +91,28 @@ def new_history() -> List[BaseMessage]:
 
 
 async def chat_once(history: List[BaseMessage], user_text: str) -> List[BaseMessage]:
+    print(f"\n💬 [DEBUG] chat_once() called with: '{user_text}'")
+    print(f"📜 [DEBUG] History has {len(history)} message(s)")
+    
     await RUNTIME.start()
 
     async with RUNTIME.lock:
-        model = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"))
+        model_name = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+        print(f"\n🤖 [DEBUG] Creating ChatAnthropic model: {model_name}")
+        model = ChatAnthropic(model=model_name)
+        
+        print(f"🔨 [DEBUG] Creating agent with {len(RUNTIME.tools)} tool(s)...")
         agent = create_agent(model, RUNTIME.tools, system_prompt=SYSTEM_PROMPT)
+        
+        print("📤 [DEBUG] Sending to Claude (agent.ainvoke)...")
+        print("   ⏳ Waiting for response (Claude may call tools)...\n")
         result = await agent.ainvoke({"messages": [*history, HumanMessage(content=user_text)]})
-        return result["messages"]
+        
+        messages = result["messages"]
+        print(f"\n📥 [DEBUG] Received {len(messages)} message(s) back:")
+        for i, msg in enumerate(messages):
+            msg_type = type(msg).__name__
+            content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
+            print(f"   [{i}] {msg_type}: {content_preview}")
+        
+        return messages
